@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JB Manager</title>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+<!-- Chart -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+:root{
+  --bg1:#0b1220; --bg2:#020617; --card:rgba(255,255,255,.06); --border:rgba(255,255,255,.12);
+  --primary:#60a5fa; --primary2:#22d3ee; --text:#e5e7eb; --muted:#9ca3af;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Inter,system-ui,sans-serif;
+  background: radial-gradient(1200px 600px at 50% -10%, #1f2a44 0%, transparent 60%), linear-gradient(135deg,var(--bg1),var(--bg2));
+}
+
+.container{max-width:980px;margin:auto;padding:24px}
+.grid{display:grid;grid-template-columns:1fr;gap:16px}
+@media(min-width:900px){.grid{grid-template-columns:1.2fr .8fr}}
+
+.card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:18px;
+  box-shadow:0 20px 50px rgba(0,0,0,.45);
+  backdrop-filter: blur(16px);
+}
+
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,var(--primary),var(--primary2));display:flex;align-items:center;justify-content:center;font-weight:800}
+.title{font-weight:700}
+.muted{color:var(--muted);font-size:12px}
+
+.row{display:grid;grid-template-columns:1fr;gap:10px}
+@media(min-width:520px){.row{grid-template-columns:1fr 1fr 1fr}}
+
+input{
+  width:100%; padding:12px; border-radius:12px; border:none;
+  background:rgba(255,255,255,.08); color:white;
+}
+
+button{
+  border:none; border-radius:12px; padding:12px; font-weight:700; cursor:pointer;
+  background:linear-gradient(135deg,var(--primary),var(--primary2)); color:#031525;
+}
+button.secondary{background:rgba(255,255,255,.12); color:white}
+button.danger{background:#ef4444;color:white}
+
+.list{display:flex;flex-direction:column;gap:10px}
+.item{
+  display:flex;justify-content:space-between;
+  background:rgba(255,255,255,.05);
+  padding:12px;border-radius:12px;
+}
+.profit{color:#22c55e}
+
+.login-wrap{display:flex;justify-content:center;align-items:center;height:100vh}
+.hidden{display:none}
+
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#111;padding:10px 14px;border-radius:10px;opacity:0;transition:.3s}
+.toast.show{opacity:1}
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="loginWrap" class="login-wrap">
+  <div id="loginBox" class="card">
+    <div class="brand">
+      <div class="logo">JB</div>
+      <div class="title">JB Manager</div>
+    </div>
+
+    <input id="email" placeholder="Email">
+    <input id="pass" type="password" placeholder="Password">
+
+    <button id="btnLogin" onclick="login()">Login</button>
+    <button class="secondary" onclick="register()">Register</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <div class="container">
+
+    <div class="header">
+      <div class="brand">
+        <div class="logo">JB</div>
+        <div>
+          <div class="title">Dashboard</div>
+          <div class="muted">kelola profit kamu</div>
+        </div>
+      </div>
+      <button class="secondary" onclick="logout()">Logout</button>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="title">Tambah Data</div>
+        <div class="row">
+          <input id="produk" placeholder="Produk">
+          <input id="modal" type="number" placeholder="Modal">
+          <input id="jual" type="number" placeholder="Harga Jual">
+        </div>
+        <button onclick="tambah()">Tambah</button>
+      </div>
+
+      <div class="card">
+        <div class="title">Total Profit</div>
+        <div id="total">Rp 0</div>
+
+        <!-- ✅ CANVAS FIX -->
+        <canvas id="chart" style="margin-top:15px;"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="title">Data</div>
+      <div id="list" class="list"></div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyA3p6fCg-TI75gUAWFO33intKRPqXitNr8",
+  authDomain: "daftarjb.firebaseapp.com",
+  projectId: "daftarjb"
+};
+
+firebase.initializeApp(firebaseConfig);
+
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+let uid=null;
+let chart;
+let unsub=null;
+
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.innerText=msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),1500);
+}
+
+function register(){
+  auth.createUserWithEmailAndPassword(email.value, pass.value)
+  .then(()=>toast("Register berhasil"))
+  .catch(e=>toast(e.message));
+}
+
+function login(){
+  auth.signInWithEmailAndPassword(email.value, pass.value)
+  .then(()=>toast("Login berhasil"))
+  .catch(e=>toast(e.message));
+}
+
+function logout(){auth.signOut()}
+
+auth.onAuthStateChanged(user=>{
+  if(user){
+    uid=user.uid;
+    loginWrap.classList.add('hidden');
+    app.classList.remove('hidden');
+    loadData();
+  }else{
+    loginWrap.classList.remove('hidden');
+    app.classList.add('hidden');
+    if(unsub){unsub();unsub=null}
+  }
+});
+
+function tambah(){
+  if(!produk.value||!modal.value||!jual.value){toast("Isi semua");return}
+
+  db.collection('jb').add({
+    uid,
+    produk:produk.value,
+    modal:Number(modal.value),
+    jual:Number(jual.value)
+  });
+
+  produk.value="";
+  modal.value="";
+  jual.value="";
+}
+
+function hapus(id){
+  db.collection('jb').doc(id).delete();
+}
+
+function loadData(){
+  if(unsub){unsub()}
+  unsub = db.collection('jb').where('uid','==',uid).onSnapshot(res=>{
+    const list=document.getElementById('list');
+    const totalEl=document.getElementById('total');
+
+    list.innerHTML="";
+    let total=0;
+    let profits=[];
+
+    res.forEach(doc=>{
+      const d=doc.data();
+      const profit=d.jual-d.modal;
+      total+=profit;
+      profits.push(profit);
+
+      list.innerHTML+=`
+      <div class="item">
+        <span>${d.produk}</span>
+        <span class="profit">Rp ${profit}</span>
+      </div>`;
+    });
+
+    totalEl.innerText="Rp "+total;
+    renderChart(profits);
+  });
+}
+
+function renderChart(data){
+  const ctx=document.getElementById('chart');
+  if(chart) chart.destroy();
+
+  chart=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:data.map((_,i)=>'Data '+(i+1)),
+      datasets:[{
+        data:data,
+        tension:0.4,
+        fill:true
+      }]
+    },
+    options:{
+      plugins:{legend:{display:false}}
+    }
+  });
+}
+</script>
+
+</body>
+</html>
